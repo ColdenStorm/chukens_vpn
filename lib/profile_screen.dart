@@ -12,7 +12,6 @@
 // Later: replace mock data with real backend state.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'login_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -26,50 +25,19 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-
-  @override
-  void initState() {
-    super.initState();
-    devicesLimit = _devicesLimitByTariff;
-  }
-
   // --------- MOCK DATA (replace later) ----------
+  final DateTime accessUntil = DateTime(2026, 6, 12);
+  final Duration timeLeft = const Duration(days: 1, hours: 14);
 
-  // Tariff-derived UI (mock rules, adjust later)
-  Color get _tariffColor {
-    switch (widget.tariff) {
-      case 'Trial':
-        return const Color(0xFF9DB4C0); // серо-голубой
-      case 'Standard':
-        return const Color(0xFF2E86FF); // синий
-      case 'PRO':
-        return const Color(0xFFFFC857); // золотой
-      default:
-        return const Color(0xFFFF8A00);
-    }
-  }
+  final String connectedTime = '2ч 14м';
+  final String trafficToday = '1.3 GB';
+  final String connectionsCount = '6';
 
-  int get _devicesLimitByTariff {
-    switch (widget.tariff) {
-      case 'Trial':
-        return 1;
-      case 'Standard':
-        return 2;
-      case 'PRO':
-        return 5;
-      default:
-        return 1;
-    }
-  }
+  // ----------------------------------------------
 
-  bool accessActive = true;
-  DateTime accessUntil = DateTime(2026, 6, 12);
+  bool get _isTrialTariff => widget.tariff == 'Trial';
 
-  String deviceCode = 'XK-29A-PL90';
-  int devicesUsed = 1;
-  int devicesLimit = 1; // will be set from tariff in initState
-
-  // ---------------------------------------------
+  bool get _isAccessActive => DateTime.now().isBefore(accessUntil);
 
   String get _untilText {
     final d = accessUntil;
@@ -81,25 +49,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  Future<void> _copyCode() async {
-    await Clipboard.setData(ClipboardData(text: deviceCode));
-    if (!mounted) return;
-    _toast('Код устройства скопирован');
+  String get _timeLeftText {
+    final days = timeLeft.inDays;
+    final hours = timeLeft.inHours.remainder(24);
+    return '$days день $hours часов';
   }
 
-  Future<void> _changeCodeStub() async {
-    // UI-only stub: "change code" just generates a new mock code
-    setState(() {
-      deviceCode = 'CK-${DateTime.now().millisecondsSinceEpoch % 10000}-NEW';
-    });
-    _toast('Новый код создан (мок)');
-  }
-
-  Future<void> _openTelegramBot() async {
-    final uri = Uri.parse('https://t.me/chukens_bot');
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      _toast('Не удалось открыть Telegram');
+  Future<void> _onTariffButtonPressed() async {
+    if (_isTrialTariff) {
+      final uri = Uri.parse('https://t.me/chukens_bot');
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        _toast('Не удалось открыть Telegram');
+      }
+      return;
     }
+
+    _toast('Управление подпиской скоро появится');
   }
 
   Future<void> _logout() async {
@@ -148,42 +113,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
                   children: [
 
-                    // Tariff / access (без заголовка "Доступ" и без панели устройств)
+                    // Tariff and access card
                     _GlassCard(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Тариф: ${widget.tariff == 'Trial' ? 'Пробный период (2 дня)' : 'Стандартный (1 неделя или месяц)'}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
+                          const _SectionTitle('Тариф и доступ'),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Text(
+                                _isAccessActive ? '🟢 Активен' : '🔴 Истёк',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            'Активен до: $_untilText',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          _InfoRow(label: 'Тариф', value: _isTrialTariff ? 'Trial' : 'Standard'),
+                          const SizedBox(height: 8),
+                          _InfoRow(label: 'Осталось', value: _timeLeftText),
+                          const SizedBox(height: 8),
+                          _InfoRow(label: 'Доступ до', value: _untilText),
                           const SizedBox(height: 14),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
-                              onPressed: _openTelegramBot,
+                              onPressed: _onTariffButtonPressed,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 side: BorderSide(color: Colors.white.withOpacity(0.22)),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              child: const Text('Продлить', style: TextStyle(fontWeight: FontWeight.w900)),
+                              child: Text(
+                                _isTrialTariff ? '🔥 Перейти на Standard (99₽)' : 'Управление подпиской',
+                                style: const TextStyle(fontWeight: FontWeight.w900),
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    _GlassCard(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _SectionTitle('Статистика'),
+                          const SizedBox(height: 12),
+                          _StatTile(icon: '⏱', title: 'Время подключения', value: connectedTime),
+                          const SizedBox(height: 8),
+                          _StatTile(icon: '📊', title: 'Трафик сегодня', value: trafficToday),
+                          const SizedBox(height: 8),
+                          _StatTile(icon: '🔄', title: 'Подключений', value: connectionsCount),
                         ],
                       ),
                     ),
@@ -424,6 +410,48 @@ class _InfoRow extends StatelessWidget {
         const SizedBox(width: 10),
         Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
       ],
+    );
+  }
+}
+
+
+
+class _StatTile extends StatelessWidget {
+  final String icon;
+  final String title;
+  final String value;
+
+  const _StatTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
     );
   }
 }
